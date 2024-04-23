@@ -88,6 +88,7 @@ resource "openstack_compute_instance_v2" "master" {
   image_id        = data.openstack_images_image_v2.talos.id
   security_groups = [openstack_compute_secgroup_v2.master.name]
   flavor_id       = data.openstack_compute_flavor_v2.small.id
+  user_data       = data.talos_machine_configuration.controlplane.machine_configuration
 
   network {
     port = openstack_networking_port_v2.master.id
@@ -123,7 +124,7 @@ resource "talos_machine_configuration_apply" "controlplane" {
   config_patches = [
     templatefile("${path.module}/templates/install-disk-and-hostname.yaml.tmpl", {
       hostname     = "${var.name}-cp"
-      install_disk = "/dev/sda"
+      install_disk = "/dev/vda"
     }),
     file("${path.module}/files/cp-scheduling.yaml"),
   ]
