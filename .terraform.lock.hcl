@@ -21,6 +21,27 @@ provider "registry.terraform.io/hashicorp/local" {
   ]
 }
 
+provider "registry.terraform.io/ovh/ovh" {
+  version     = "0.44.0"
+  constraints = "0.44.0"
+  hashes = [
+    "h1:inMOhxHf0O4V3kUBzdw40opjxB2/Y0nb+GJC0F+1gGE=",
+    "zh:111347d215d2fca257f3263c37117b685ac0d44066ce73a9d1eb6668a6ec4308",
+    "zh:173f00d3a7aa53f0f282d4ab495d52930e15308e5fb24e507e00d3f4d2337d11",
+    "zh:1899bf47baa12f4d76f2df501dde17dce8b3f813808229beebd20a3368476324",
+    "zh:1e2b8bef594346dcad64856d24f32e973ad5609d91b49bf9545a753680162667",
+    "zh:252ae0512625ba84650711c14ce0551b8f5742dd5640fe7325e701a9adb3ec49",
+    "zh:2afc2edd89c05b0b828818816739c82c7cb09c9624c6666e1212525620bfaec9",
+    "zh:2dd5b8ad4d131c94364ca5e1642a35bd195efe52a471c2232dba7ebb1db835b5",
+    "zh:2fe0fa2a2ff26ed42f1a4663c4c14840b5222fce2b85dd015235178b0f440b24",
+    "zh:3bf9a9f766aeae7b89a587286c0384b99a004ad93427426058de9570917d770c",
+    "zh:6c6c84c852d5b1670225773d90d018bc8e4816ba12ee46559a51e20145cc1c06",
+    "zh:6cfde05ead5f3c90228f89a4b439e79de0dbc992f3a5858f5d3810d14b3ec739",
+    "zh:751bfeb7e635e63e1f4cad865ae25d5cfc62177a06c43c21cfdc6d41f165066d",
+    "zh:abf4e2a54027dc7c779b841044e6bca7c3d9ba7d46407802ccd8152d08c1257b",
+  ]
+}
+
 provider "registry.terraform.io/siderolabs/talos" {
   version     = "0.5.0"
   constraints = "0.5.0"
