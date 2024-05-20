@@ -9,6 +9,46 @@ locals {
           ]
         }
       }
+      discovery = {
+        enabled = true
+        registries = {
+          kubernetes = {
+            disabled = false
+          }
+          service = {
+            disabled = true
+          }
+        }
+      }
+      inlineManifests = [
+        {
+          name     = "cloud-config"
+          contents = file("secret.yaml")
+        }
+        # TODO: Add cloud-config secret required by CSI plugin
+        #   {
+        #     name = "cloud-config"
+        #     contents = yamlencode({
+        #       apiVersion = "v1"
+        #       kind       = "Secret"
+        #       metadata = {
+        #         name      = "cloud-config"
+        #         namespace = "kube-system"
+        #       }
+        #       type = "Opaque"
+        #       data = base64encode()
+        #     })
+        #   }
+      ]
+      externalCloudProvider = {
+        enabled = true
+        manifests = [
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml",
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-controllerplugin-rbac.yaml",
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml",
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-nodeplugin-rbac.yaml",
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml",
+      ] }
     }
     machine = {
       features = {
@@ -39,8 +79,9 @@ locals {
 resource "talos_machine_secrets" "this" {}
 
 data "talos_machine_configuration" "controlplane" {
-  cluster_name       = var.name
-  machine_type       = "controlplane"
+  cluster_name = var.name
+  machine_type = "controlplane"
+  # Use VIP/LB
   cluster_endpoint   = "https://${openstack_networking_floatingip_v2.controller[0].address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
@@ -53,8 +94,9 @@ data "talos_machine_configuration" "controlplane" {
 }
 
 data "talos_machine_configuration" "worker" {
-  cluster_name       = var.name
-  machine_type       = "worker"
+  cluster_name = var.name
+  machine_type = "worker"
+  # Use VIP/LB
   cluster_endpoint   = "https://${openstack_networking_floatingip_v2.controller[0].address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
@@ -64,6 +106,12 @@ data "talos_machine_configuration" "worker" {
   config_patches = [
     yamlencode(local.machine_config),
   ]
+}
+
+data "talos_client_configuration" "this" {
+  cluster_name         = var.name
+  client_configuration = talos_machine_secrets.this.client_configuration
+  endpoints            = openstack_networking_floatingip_v2.controller[*].address
 }
 
 resource "talos_machine_configuration_apply" "controlplane" {
@@ -81,7 +129,7 @@ resource "talos_machine_configuration_apply" "worker" {
   count                       = var.worker_count
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.worker.machine_configuration
-  node                        = openstack_compute_instance_v2.worker[count.index].name
+  node                        = openstack_compute_instance_v2.worker[count.index].network[0].fixed_ip_v4
   endpoint                    = openstack_networking_floatingip_v2.controller[0].address
 
   depends_on = [
@@ -97,14 +145,9 @@ resource "talos_machine_bootstrap" "this" {
   ]
 }
 
-data "talos_client_configuration" "this" {
-  cluster_name         = var.name
-  client_configuration = talos_machine_secrets.this.client_configuration
-  endpoints            = openstack_networking_floatingip_v2.controller[*].address
-}
-
 data "talos_cluster_kubeconfig" "this" {
-  depends_on           = [talos_machine_bootstrap.this]
+  depends_on = [talos_machine_bootstrap.this]
+  # Use VIP/LB
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = openstack_networking_floatingip_v2.controller[0].address
 }

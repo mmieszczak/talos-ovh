@@ -141,6 +141,13 @@ resource "openstack_compute_instance_v2" "worker" {
   }
 
   depends_on = [
-    ovh_cloud_project_network_private_subnet.subnet
+    ovh_cloud_project_network_private_subnet.subnet,
+    openstack_compute_instance_v2.controller,
   ]
+
+  lifecycle {
+    ignore_changes = [
+      user_data,
+    ]
+  }
 }
