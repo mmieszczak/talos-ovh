@@ -1,5 +1,15 @@
 locals {
-  cloudinit_machine_config = {
+  machine_config = {
+    cluster = {
+      network = {
+        cni = {
+          name = "custom"
+          urls = [
+            "https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/canal.yaml"
+          ]
+        }
+      }
+    }
     machine = {
       network = {
         nameservers = [
@@ -7,54 +17,17 @@ locals {
           "1.0.0.1",
         ]
       }
+      kubelet = {
+        extraArgs = {
+          feature-gates = "GracefulNodeShutdown=true"
+        }
+        extraConfig = {
+          shutdownGracePeriod             = "60s"
+          shutdownGracePeriodCriticalPods = "60s"
+        }
+      },
     }
   }
-  #   common_machine_config = {
-  #     cluster = {
-  #       # see https://www.talos.dev/v1.7/talos-guides/discovery/
-  #       # see https://www.talos.dev/v1.7/reference/configuration/#clusterdiscoveryconfig
-  #       discovery = {
-  #         enabled = true
-  #         registries = {
-  #           kubernetes = {
-  #             disabled = false
-  #           }
-  #           service = {
-  #             disabled = true
-  #           }
-  #         }
-  #       }
-  #       network = {
-  #         cni = {
-  #           name = "custom"
-  #           urls = [
-  #             "https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/canal.yaml"
-  #           ]
-  #         }
-  #       }
-  #     }
-  #     machine = {
-  #       kubelet = {
-  #         extraArgs = {
-  #           feature-gates = "GracefulNodeShutdown=true"
-  #         }
-  #         extraConfig = {
-  #           shutdownGracePeriod             = "60s"
-  #           shutdownGracePeriodCriticalPods = "60s"
-  #         }
-  #       },
-  #       network = {
-  #         interfaces = [
-  #           {
-  #             deviceSelector = {
-  #               physical = true
-  #             }
-  #             dhcp = true
-  #           }
-  #         ]
-  #       }
-  #     }
-  #   }
 }
 
 resource "talos_machine_secrets" "this" {}
@@ -62,50 +35,72 @@ resource "talos_machine_secrets" "this" {}
 data "talos_machine_configuration" "controlplane" {
   cluster_name       = var.name
   machine_type       = "controlplane"
-  cluster_endpoint   = "https://${openstack_networking_floatingip_v2.master.address}:6443"
+  cluster_endpoint   = "https://${openstack_networking_floatingip_v2.controller[0].address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
   kubernetes_version = "v${var.kubernetes_version}"
   examples           = false
   docs               = false
   config_patches = [
-    yamlencode(local.cloudinit_machine_config),
+    yamlencode(local.machine_config),
   ]
 }
 
-# resource "talos_machine_configuration_apply" "controlplane" {
-#   client_configuration        = talos_machine_secrets.this.client_configuration
-#   machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
-#   node                        = openstack_networking_floatingip_v2.master.address
-#
-#   config_patches = [
-#     yamlencode(local.common_machine_config),
-#   ]
-#   depends_on = [
-#     openstack_compute_floatingip_associate_v2.master
-#   ]
-# }
+data "talos_machine_configuration" "worker" {
+  cluster_name       = var.name
+  machine_type       = "worker"
+  cluster_endpoint   = "https://${openstack_networking_floatingip_v2.controller[0].address}:6443"
+  machine_secrets    = talos_machine_secrets.this.machine_secrets
+  talos_version      = "v${var.talos_version}"
+  kubernetes_version = "v${var.kubernetes_version}"
+  examples           = false
+  docs               = false
+  config_patches = [
+    yamlencode(local.machine_config),
+  ]
+}
+
+resource "talos_machine_configuration_apply" "controlplane" {
+  count                       = var.controller_count
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
+  node                        = openstack_networking_floatingip_v2.controller[count.index].address
+
+  depends_on = [
+    openstack_compute_floatingip_associate_v2.controller
+  ]
+}
+
+resource "talos_machine_configuration_apply" "worker" {
+  count                       = var.worker_count
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.worker.machine_configuration
+  node                        = openstack_compute_instance_v2.worker[count.index].network[0].fixed_ip_v4
+  endpoint                    = openstack_networking_floatingip_v2.controller[0].address
+
+  depends_on = [
+    openstack_compute_floatingip_associate_v2.controller
+  ]
+}
 
 resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = openstack_networking_floatingip_v2.master.address
+  node                 = openstack_networking_floatingip_v2.controller[0].address
   depends_on = [
-    # talos_machine_configuration_apply.controlplane
+    talos_machine_configuration_apply.controlplane
   ]
 }
 
 data "talos_client_configuration" "this" {
   cluster_name         = var.name
   client_configuration = talos_machine_secrets.this.client_configuration
-  endpoints = [
-    openstack_networking_floatingip_v2.master.address
-  ]
+  endpoints            = openstack_networking_floatingip_v2.controller[*].address
 }
 
 data "talos_cluster_kubeconfig" "this" {
   depends_on           = [talos_machine_bootstrap.this]
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = openstack_networking_floatingip_v2.master.address
+  node                 = openstack_networking_floatingip_v2.controller[0].address
 }
 
 resource "local_file" "kubeconfig" {
