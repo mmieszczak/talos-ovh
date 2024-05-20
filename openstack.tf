@@ -3,7 +3,7 @@
 // ----------
 
 data "ovh_cloud_project" "lts" {
-  service_name = "5e5a02028b38427289038b1b51363e78"
+  service_name = var.project_id
 }
 
 resource "ovh_cloud_project_network_private" "net" {

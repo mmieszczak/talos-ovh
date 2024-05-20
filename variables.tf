@@ -3,6 +3,11 @@ variable "name" {
   default = "mm-talos"
 }
 
+variable "project_id" {
+  type    = string
+  default = "5e5a02028b38427289038b1b51363e78"
+}
+
 variable "talos_version" {
   type    = string
   default = "1.7.1"

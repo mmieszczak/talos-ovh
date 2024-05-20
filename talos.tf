@@ -11,6 +11,12 @@ locals {
       }
     }
     machine = {
+      features = {
+        hostDNS = {
+          enabled            = true
+          resolveMemberNames = true
+        }
+      }
       network = {
         nameservers = [
           "1.1.1.1",
@@ -75,7 +81,7 @@ resource "talos_machine_configuration_apply" "worker" {
   count                       = var.worker_count
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.worker.machine_configuration
-  node                        = openstack_compute_instance_v2.worker[count.index].network[0].fixed_ip_v4
+  node                        = openstack_compute_instance_v2.worker[count.index].name
   endpoint                    = openstack_networking_floatingip_v2.controller[0].address
 
   depends_on = [
