@@ -10,12 +10,12 @@ variable "project_id" {
 
 variable "talos_version" {
   type    = string
-  default = "1.7.1"
+  default = "1.7.4"
 }
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.29.4"
+  default = "1.27.14"
 }
 
 variable "controller_count" {
@@ -25,5 +25,5 @@ variable "controller_count" {
 
 variable "worker_count" {
   type    = number
-  default = 3
+  default = 5
 }

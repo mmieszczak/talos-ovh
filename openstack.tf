@@ -83,7 +83,8 @@ resource "openstack_compute_instance_v2" "controller" {
   }
 
   depends_on = [
-    ovh_cloud_project_network_private_subnet.subnet
+    ovh_cloud_project_network_private_subnet.subnet,
+    ovh_cloud_project_gateway.gateway,
   ]
 
   lifecycle {
@@ -104,8 +105,6 @@ resource "openstack_compute_floatingip_associate_v2" "controller" {
   floating_ip = openstack_networking_floatingip_v2.controller[count.index].address
   instance_id = openstack_compute_instance_v2.controller[count.index].id
   fixed_ip    = openstack_compute_instance_v2.controller[count.index].network[0].fixed_ip_v4
-
-  depends_on = [ovh_cloud_project_gateway.gateway]
 }
 
 resource "openstack_blockstorage_volume_v3" "worker" {

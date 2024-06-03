@@ -23,32 +23,43 @@ locals {
       inlineManifests = [
         {
           name     = "cloud-config"
-          contents = file("secret.yaml")
-        }
-        # TODO: Add cloud-config secret required by CSI plugin
-        #   {
-        #     name = "cloud-config"
-        #     contents = yamlencode({
-        #       apiVersion = "v1"
-        #       kind       = "Secret"
-        #       metadata = {
-        #         name      = "cloud-config"
-        #         namespace = "kube-system"
-        #       }
-        #       type = "Opaque"
-        #       data = base64encode()
-        #     })
-        #   }
+          contents = file("manifests/secret.yaml")
+        },
+        {
+          name     = "storageclass"
+          contents = file("manifests/storageclass.yaml")
+        },
       ]
       externalCloudProvider = {
         enabled = true
         manifests = [
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-controller-manager-role-bindings.yaml",
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-controller-manager-roles.yaml",
+          "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml",
           "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml",
           "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-controllerplugin-rbac.yaml",
           "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml",
           "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/cinder-csi-nodeplugin-rbac.yaml",
           "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml",
-      ] }
+        ]
+      }
+      apiServer = {
+        admissionControl = [{
+          name = "PodSecurity"
+          configuration = {
+            apiVersion = "pod-security.admission.config.k8s.io/v1alpha1"
+            kind       = "PodSecurityConfiguration"
+            defaults = {
+              enforce         = "privileged"
+              enforce-version = "latest"
+              audit           = "baseline"
+              audit-version   = "latest"
+              warn            = "baseline"
+              warn-version    = "latest"
+            }
+          }
+        }]
+      }
     }
     machine = {
       features = {
