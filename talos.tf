@@ -85,15 +85,15 @@ locals {
       },
     }
   }
+  controller_lb_address = openstack_networking_floatingip_v2.controller_lb.address
 }
 
 resource "talos_machine_secrets" "this" {}
 
 data "talos_machine_configuration" "controlplane" {
-  cluster_name = var.name
-  machine_type = "controlplane"
-  # Use VIP/LB
-  cluster_endpoint   = "https://${openstack_networking_floatingip_v2.controller[0].address}:6443"
+  cluster_name       = var.name
+  machine_type       = "controlplane"
+  cluster_endpoint   = "https://${local.controller_lb_address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
   kubernetes_version = "v${var.kubernetes_version}"
@@ -105,10 +105,9 @@ data "talos_machine_configuration" "controlplane" {
 }
 
 data "talos_machine_configuration" "worker" {
-  cluster_name = var.name
-  machine_type = "worker"
-  # Use VIP/LB
-  cluster_endpoint   = "https://${openstack_networking_floatingip_v2.controller[0].address}:6443"
+  cluster_name       = var.name
+  machine_type       = "worker"
+  cluster_endpoint   = "https://${local.controller_lb_address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
   kubernetes_version = "v${var.kubernetes_version}"
@@ -144,7 +143,8 @@ resource "talos_machine_configuration_apply" "worker" {
   endpoint                    = openstack_networking_floatingip_v2.controller[0].address
 
   depends_on = [
-    openstack_compute_floatingip_associate_v2.controller
+    openstack_compute_floatingip_associate_v2.controller,
+    openstack_lb_member_v2.controller,
   ]
 }
 
@@ -157,8 +157,7 @@ resource "talos_machine_bootstrap" "this" {
 }
 
 data "talos_cluster_kubeconfig" "this" {
-  depends_on = [talos_machine_bootstrap.this]
-  # Use VIP/LB
+  depends_on           = [talos_machine_bootstrap.this]
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = openstack_networking_floatingip_v2.controller[0].address
 }

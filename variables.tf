@@ -25,5 +25,5 @@ variable "controller_count" {
 
 variable "worker_count" {
   type    = number
-  default = 5
+  default = 0
 }
