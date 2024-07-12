@@ -15,7 +15,7 @@ variable "talos_version" {
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.27.14"
+  default = "1.27.15"
 }
 
 variable "controller_count" {
