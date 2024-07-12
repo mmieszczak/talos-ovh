@@ -82,7 +82,11 @@ locals {
           shutdownGracePeriod             = "60s"
           shutdownGracePeriodCriticalPods = "60s"
         }
-      },
+      }
+      sysctls = {
+        "fs.inotify.max_user_watches"   = "65536"
+        "fs.inotify.max_user_instances" = "1024"
+      }
     }
   }
   controller_lb_address = openstack_networking_floatingip_v2.controller_lb.address
@@ -132,19 +136,6 @@ resource "talos_machine_configuration_apply" "controlplane" {
 
   depends_on = [
     openstack_compute_floatingip_associate_v2.controller
-  ]
-}
-
-resource "talos_machine_configuration_apply" "worker" {
-  count                       = var.worker_count
-  client_configuration        = talos_machine_secrets.this.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.worker.machine_configuration
-  node                        = openstack_compute_instance_v2.worker[count.index].network[0].fixed_ip_v4
-  endpoint                    = openstack_networking_floatingip_v2.controller[0].address
-
-  depends_on = [
-    openstack_compute_floatingip_associate_v2.controller,
-    openstack_lb_member_v2.controller,
   ]
 }
 

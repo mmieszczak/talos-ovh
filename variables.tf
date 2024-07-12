@@ -23,7 +23,24 @@ variable "controller_count" {
   default = 3
 }
 
-variable "worker_count" {
-  type    = number
-  default = 0
+variable "nodepools" {
+  type = map(any)
+  default = {
+    apps = {
+      node_count = 5
+      flavor     = "d2-8"
+      node_labels = {
+        "node.kubernetes.io/role" = "apps"
+      }
+      node_taints = {}
+    },
+    services = {
+      node_count = 3
+      flavor     = "d2-8"
+      node_labels = {
+        "node.kubernetes.io/role" = "serivces"
+      }
+      node_taints = {}
+    },
+  }
 }

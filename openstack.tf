@@ -127,11 +127,12 @@ resource "openstack_blockstorage_volume_v3" "controller" {
 }
 
 resource "openstack_compute_instance_v2" "controller" {
-  count           = var.controller_count
-  name            = "${var.name}-controller-${count.index}"
-  security_groups = ["default"]
-  flavor_id       = data.openstack_compute_flavor_v2.small.id
-  user_data       = data.talos_machine_configuration.controlplane.machine_configuration
+  count               = var.controller_count
+  name                = "${var.name}-controller-${count.index}"
+  security_groups     = ["default"]
+  flavor_id           = data.openstack_compute_flavor_v2.small.id
+  user_data           = data.talos_machine_configuration.controlplane.machine_configuration
+  stop_before_destroy = true
 
   block_device {
     uuid             = openstack_blockstorage_volume_v3.controller[count.index].id
@@ -177,46 +178,20 @@ resource "openstack_lb_member_v2" "controller" {
   protocol_port = 6443
 }
 
-resource "openstack_blockstorage_volume_v3" "worker" {
-  count    = var.worker_count
-  region   = "WAW1"
-  name     = "mm-talos-worker-${count.index}"
-  size     = 50
-  image_id = data.openstack_images_image_v2.talos.id
+// nodepool
+module "apps" {
+  for_each   = tomap(var.nodepools)
+  name       = "${var.name}-${each.key}"
+  source     = "./modules/worker"
+  node_count = each.value.node_count
+  flavor     = each.value.flavor
 
-  lifecycle {
-    ignore_changes = [
-      image_id,
-    ]
-  }
-}
+  node_labels = each.value.node_labels
+  node_taints = each.value.node_taints
 
-resource "openstack_compute_instance_v2" "worker" {
-  count           = var.worker_count
-  name            = "${var.name}-worker-${count.index}"
-  security_groups = ["default"]
-  flavor_id       = data.openstack_compute_flavor_v2.small.id
-  user_data       = data.talos_machine_configuration.worker.machine_configuration
-
-  block_device {
-    uuid             = openstack_blockstorage_volume_v3.worker[count.index].id
-    source_type      = "volume"
-    boot_index       = 0
-    destination_type = "volume"
-  }
-
-  network {
-    name = ovh_cloud_project_network_private.net.name
-  }
-
-  depends_on = [
-    ovh_cloud_project_network_private_subnet.subnet,
-    openstack_compute_instance_v2.controller,
-  ]
-
-  lifecycle {
-    ignore_changes = [
-      user_data,
-    ]
-  }
+  image_id             = data.openstack_images_image_v2.talos.id
+  user_data            = data.talos_machine_configuration.worker.machine_configuration
+  network              = ovh_cloud_project_network_private.net.name
+  controller_address   = openstack_networking_floatingip_v2.controller[0].address
+  client_configuration = talos_machine_secrets.this.client_configuration
 }
