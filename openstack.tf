@@ -61,6 +61,10 @@ resource "openstack_networking_port_v2" "controller_lb" {
   name           = "mm-talos-controller-lb"
   network_id     = data.openstack_networking_network_v2.private.id
   admin_state_up = "true"
+
+  fixed_ip {
+    subnet_id = ovh_cloud_project_network_private_subnet.subnet.id
+  }
 }
 
 resource "openstack_networking_floatingip_v2" "controller_lb" {
