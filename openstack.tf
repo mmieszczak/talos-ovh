@@ -109,7 +109,7 @@ data "openstack_images_image_v2" "talos" {
 }
 
 data "openstack_compute_flavor_v2" "small" {
-  name = "d2-4"
+  name = "d2-8"
 }
 
 resource "openstack_blockstorage_volume_v3" "controller" {
