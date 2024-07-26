@@ -126,7 +126,7 @@ resource "openstack_lb_monitor_v2" "controller-talos" {
 // -------
 
 data "openstack_images_image_v2" "talos" {
-  name        = "mm-talos"
+  name        = "mm-talos-1-7-5"
   most_recent = true
 }
 

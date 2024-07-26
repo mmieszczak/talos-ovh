@@ -10,7 +10,7 @@ variable "project_id" {
 
 variable "talos_version" {
   type    = string
-  default = "1.7.4"
+  default = "1.7.5"
 }
 
 variable "kubernetes_version" {
