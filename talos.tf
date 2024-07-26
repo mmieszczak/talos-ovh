@@ -89,8 +89,6 @@ locals {
       }
     }
   }
-  controller_lb_address        = openstack_networking_floatingip_v2.controller_lb.address
-  controller_private_addresses = openstack_networking_port_v2.controller[*].all_fixed_ips[0]
 }
 
 resource "talos_machine_secrets" "this" {}
@@ -134,14 +132,6 @@ data "talos_client_configuration" "this" {
   endpoints            = [local.controller_lb_address]
 }
 
-resource "talos_machine_configuration_apply" "controlplane" {
-  count                       = var.controller_count
-  client_configuration        = talos_machine_secrets.this.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
-  node                        = local.controller_private_addresses[count.index]
-  endpoint                    = local.controller_lb_address
-}
-
 resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = local.controller_private_addresses[0]
@@ -149,10 +139,14 @@ resource "talos_machine_bootstrap" "this" {
 }
 
 data "talos_cluster_kubeconfig" "this" {
-  depends_on           = [talos_machine_bootstrap.this]
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = local.controller_private_addresses[0]
   endpoint             = local.controller_lb_address
+
+  depends_on = [
+    talos_machine_bootstrap.this,
+    openstack_lb_member_v2.controller-kubernetes,
+  ]
 }
 
 resource "local_file" "kubeconfig" {

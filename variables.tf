@@ -13,6 +13,11 @@ variable "talos_version" {
   default = "1.7.5"
 }
 
+variable "talos_image" {
+  type    = string
+  default = "mm-talos-1-7-5"
+}
+
 variable "kubernetes_version" {
   type    = string
   default = "1.27.15"
