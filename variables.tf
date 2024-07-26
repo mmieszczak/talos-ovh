@@ -27,7 +27,7 @@ variable "nodepools" {
   type = map(any)
   default = {
     apps = {
-      node_count = 5
+      node_count = 3
       flavor     = "d2-8"
       node_labels = {
         "node.kubernetes.io/role" = "apps"

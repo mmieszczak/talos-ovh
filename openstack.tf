@@ -77,22 +77,44 @@ resource "openstack_networking_floatingip_associate_v2" "controller_lb" {
   port_id     = openstack_networking_port_v2.controller_lb.id
 }
 
-resource "openstack_lb_listener_v2" "controller" {
+resource "openstack_lb_listener_v2" "controller-kubernetes" {
   name            = "mm-talos-controller"
   protocol        = "TCP"
   protocol_port   = 6443
   loadbalancer_id = openstack_lb_loadbalancer_v2.controller.id
 }
 
-resource "openstack_lb_pool_v2" "mm-talos-controller" {
-  name        = "mm-talos-controller"
+resource "openstack_lb_pool_v2" "mm-talos-controller-kubernetes" {
+  name        = "mm-talos-controller-kubernetes"
   protocol    = "TCP"
   lb_method   = "ROUND_ROBIN"
-  listener_id = openstack_lb_listener_v2.controller.id
+  listener_id = openstack_lb_listener_v2.controller-kubernetes.id
 }
 
-resource "openstack_lb_monitor_v2" "controller" {
-  pool_id     = openstack_lb_pool_v2.mm-talos-controller.id
+resource "openstack_lb_monitor_v2" "controller-kubernetes" {
+  pool_id     = openstack_lb_pool_v2.mm-talos-controller-kubernetes.id
+  delay       = 5
+  max_retries = 4
+  timeout     = 10
+  type        = "TCP"
+}
+
+resource "openstack_lb_listener_v2" "controller-talos" {
+  name            = "mm-talos-talos"
+  protocol        = "TCP"
+  protocol_port   = 50000
+  loadbalancer_id = openstack_lb_loadbalancer_v2.controller.id
+}
+
+resource "openstack_lb_pool_v2" "mm-talos-controller-talos" {
+  name        = "mm-talos-controller-talos"
+  protocol    = "TCP"
+  lb_method   = "ROUND_ROBIN"
+  listener_id = openstack_lb_listener_v2.controller-talos.id
+}
+
+resource "openstack_lb_monitor_v2" "controller-talos" {
+  pool_id     = openstack_lb_pool_v2.mm-talos-controller-talos.id
   delay       = 5
   max_retries = 4
   timeout     = 10
@@ -126,6 +148,17 @@ resource "openstack_blockstorage_volume_v3" "controller" {
   }
 }
 
+resource "openstack_networking_port_v2" "controller" {
+  count          = var.controller_count
+  name           = "mm-talos-controllex-${count.index}"
+  network_id     = data.openstack_networking_network_v2.private.id
+  admin_state_up = "true"
+
+  fixed_ip {
+    subnet_id = ovh_cloud_project_network_private_subnet.subnet.id
+  }
+}
+
 resource "openstack_compute_instance_v2" "controller" {
   count               = var.controller_count
   name                = "${var.name}-controller-${count.index}"
@@ -142,7 +175,7 @@ resource "openstack_compute_instance_v2" "controller" {
   }
 
   network {
-    name = ovh_cloud_project_network_private.net.name
+    port = openstack_networking_port_v2.controller[count.index].id
   }
 
   depends_on = [
@@ -157,25 +190,20 @@ resource "openstack_compute_instance_v2" "controller" {
   }
 }
 
-resource "openstack_networking_floatingip_v2" "controller" {
-  count       = var.controller_count
-  pool        = data.openstack_networking_network_v2.public.name
-  description = "Floating IP for talos controller node"
-}
-
-resource "openstack_compute_floatingip_associate_v2" "controller" {
-  count       = var.controller_count
-  floating_ip = openstack_networking_floatingip_v2.controller[count.index].address
-  instance_id = openstack_compute_instance_v2.controller[count.index].id
-  fixed_ip    = openstack_compute_instance_v2.controller[count.index].network[0].fixed_ip_v4
-}
-
-resource "openstack_lb_member_v2" "controller" {
+resource "openstack_lb_member_v2" "controller-kubernetes" {
   count         = var.controller_count
-  name          = "mm-talos-controller-${count.index}"
-  pool_id       = openstack_lb_pool_v2.mm-talos-controller.id
+  name          = "mm-talos-controller-${count.index}-kubernetes"
+  pool_id       = openstack_lb_pool_v2.mm-talos-controller-kubernetes.id
   address       = openstack_compute_instance_v2.controller[count.index].network[0].fixed_ip_v4
   protocol_port = 6443
+}
+
+resource "openstack_lb_member_v2" "controller-talos" {
+  count         = var.controller_count
+  name          = "mm-talos-controller-${count.index}-talos"
+  pool_id       = openstack_lb_pool_v2.mm-talos-controller-talos.id
+  address       = openstack_compute_instance_v2.controller[count.index].network[0].fixed_ip_v4
+  protocol_port = 50000
 }
 
 // nodepool
@@ -192,6 +220,6 @@ module "apps" {
   image_id             = data.openstack_images_image_v2.talos.id
   user_data            = data.talos_machine_configuration.worker.machine_configuration
   network              = ovh_cloud_project_network_private.net.name
-  controller_address   = openstack_networking_floatingip_v2.controller[0].address
+  controller_address   = openstack_networking_floatingip_v2.controller_lb.address
   client_configuration = talos_machine_secrets.this.client_configuration
 }

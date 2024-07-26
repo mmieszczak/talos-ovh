@@ -89,7 +89,8 @@ locals {
       }
     }
   }
-  controller_lb_address = openstack_networking_floatingip_v2.controller_lb.address
+  controller_lb_address        = openstack_networking_floatingip_v2.controller_lb.address
+  controller_private_addresses = openstack_networking_port_v2.controller[*].all_fixed_ips[0]
 }
 
 resource "talos_machine_secrets" "this" {}
@@ -105,6 +106,11 @@ data "talos_machine_configuration" "controlplane" {
   docs               = false
   config_patches = [
     yamlencode(local.machine_config),
+    yamlencode({
+      machine = {
+        certSANs = [local.controller_lb_address]
+      }
+    }),
   ]
 }
 
@@ -125,32 +131,28 @@ data "talos_machine_configuration" "worker" {
 data "talos_client_configuration" "this" {
   cluster_name         = var.name
   client_configuration = talos_machine_secrets.this.client_configuration
-  endpoints            = openstack_networking_floatingip_v2.controller[*].address
+  endpoints            = [local.controller_lb_address]
 }
 
 resource "talos_machine_configuration_apply" "controlplane" {
   count                       = var.controller_count
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
-  node                        = openstack_networking_floatingip_v2.controller[count.index].address
-
-  depends_on = [
-    openstack_compute_floatingip_associate_v2.controller
-  ]
+  node                        = local.controller_private_addresses[count.index]
+  endpoint                    = local.controller_lb_address
 }
 
 resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = openstack_networking_floatingip_v2.controller[0].address
-  depends_on = [
-    talos_machine_configuration_apply.controlplane
-  ]
+  node                 = local.controller_private_addresses[0]
+  endpoint             = local.controller_lb_address
 }
 
 data "talos_cluster_kubeconfig" "this" {
   depends_on           = [talos_machine_bootstrap.this]
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = openstack_networking_floatingip_v2.controller[0].address
+  node                 = local.controller_private_addresses[0]
+  endpoint             = local.controller_lb_address
 }
 
 resource "local_file" "kubeconfig" {
