@@ -11,37 +11,46 @@ data "openstack_compute_flavor_v2" "flavor" {
   name = var.flavor
 }
 
-# resource "random_string" "suffix" {
-#   length  = 6
-#   upper   = false
-#   special = false
-#
-#   lifecycle {
-#     replace_triggered_by = [
-#       data.
-#     ]
-#   }
-# }
+data "openstack_compute_availability_zones_v2" "zones" {}
+
+locals {
+  zones = data.openstack_compute_availability_zones_v2.zones.names
+}
+
+resource "random_string" "suffix" {
+  length  = 6
+  upper   = false
+  special = false
+
+  keepers = {
+    flavor_id = data.openstack_compute_flavor_v2.flavor.id,
+  }
+}
 
 resource "openstack_blockstorage_volume_v3" "worker" {
-  count  = var.node_count
-  region = "WAW1"
-  # name     = "${var.name}-${random_string.suffix.result}-${count.index}"
-  name     = "${var.name}-${count.index}"
-  size     = 50
-  image_id = data.openstack_images_image_v2.talos.id
+  count = var.node_count
+
+  name              = "${var.name}-${random_string.suffix.result}-${count.index}"
+  availability_zone = local.zones[count.index % length(local.zones)]
+  size              = 50
+  image_id          = data.openstack_images_image_v2.talos.id
 
   lifecycle {
+    create_before_destroy = true
     ignore_changes = [
       image_id,
+    ]
+    replace_triggered_by = [
+      random_string.suffix,
     ]
   }
 }
 
 resource "openstack_compute_instance_v2" "worker" {
   count = var.node_count
-  # name                = "${var.name}-${random_string.suffix.result}-${count.index}"
-  name                = "${var.name}-${count.index}"
+
+  name                = "${var.name}-${random_string.suffix.result}-${count.index}"
+  availability_zone   = local.zones[count.index % length(local.zones)]
   security_groups     = ["default"]
   flavor_id           = data.openstack_compute_flavor_v2.flavor.id
   user_data           = var.user_data
@@ -59,6 +68,7 @@ resource "openstack_compute_instance_v2" "worker" {
   }
 
   lifecycle {
+    create_before_destroy = true
     ignore_changes = [
       user_data,
     ]
@@ -66,7 +76,8 @@ resource "openstack_compute_instance_v2" "worker" {
 }
 
 resource "talos_machine_configuration_apply" "worker" {
-  count                       = var.node_count
+  count = var.node_count
+
   client_configuration        = var.client_configuration
   machine_configuration_input = var.user_data
   node                        = openstack_compute_instance_v2.worker[count.index].network[0].fixed_ip_v4

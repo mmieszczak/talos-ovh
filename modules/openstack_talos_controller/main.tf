@@ -9,7 +9,6 @@ data "openstack_compute_flavor_v2" "small" {
 
 resource "openstack_blockstorage_volume_v3" "controller" {
   count    = var.node_count
-  region   = var.region
   name     = "${var.name}-controller-${count.index}"
   size     = 50
   image_id = data.openstack_images_image_v2.talos.id

@@ -17,10 +17,6 @@ variable "lb_flavor" {
   default = "small"
 }
 
-variable "region" {
-  type = string
-}
-
 variable "talos_image" {
   type = string
 }
