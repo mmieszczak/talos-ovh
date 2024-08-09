@@ -4,18 +4,20 @@ data "openstack_images_image_v2" "talos" {
 }
 
 data "openstack_compute_flavor_v2" "small" {
-  name = "d2-8"
+  name = var.controller_flavor
 }
 
 resource "openstack_blockstorage_volume_v3" "controller" {
   count    = var.controller_count
-  region   = "WAW1"
-  name     = "mm-talos-controller-${count.index}"
+  region   = var.region
+  name     = "${var.name}-controller-${count.index}"
   size     = 50
   image_id = data.openstack_images_image_v2.talos.id
 
   lifecycle {
     ignore_changes = [
+      # Don't recreate the volume if the default image changes,
+      # as it would wipe out etcd data on the controller.
       image_id,
     ]
   }
@@ -23,7 +25,7 @@ resource "openstack_blockstorage_volume_v3" "controller" {
 
 resource "openstack_networking_port_v2" "controller" {
   count          = var.controller_count
-  name           = "mm-talos-controllex-${count.index}"
+  name           = "${var.name}-controllex-${count.index}"
   network_id     = data.openstack_networking_network_v2.private.id
   admin_state_up = "true"
 
@@ -58,6 +60,8 @@ resource "openstack_compute_instance_v2" "controller" {
 
   lifecycle {
     ignore_changes = [
+      # Don't recreate the instance if the user_data changes,
+      # since we apply these changes with confuguration_apply resource anyway.
       user_data,
     ]
   }
@@ -65,7 +69,7 @@ resource "openstack_compute_instance_v2" "controller" {
 
 resource "openstack_lb_member_v2" "controller-kubernetes" {
   count         = var.controller_count
-  name          = "mm-talos-controller-${count.index}-kubernetes"
+  name          = "${var.name}-controller-${count.index}-kubernetes"
   pool_id       = openstack_lb_pool_v2.mm-talos-controller-kubernetes.id
   address       = local.controller_private_addresses[count.index]
   protocol_port = 6443
@@ -73,7 +77,7 @@ resource "openstack_lb_member_v2" "controller-kubernetes" {
 
 resource "openstack_lb_member_v2" "controller-talos" {
   count         = var.controller_count
-  name          = "mm-talos-controller-${count.index}-talos"
+  name          = "${var.name}-controller-${count.index}-talos"
   pool_id       = openstack_lb_pool_v2.mm-talos-controller-talos.id
   address       = local.controller_private_addresses[count.index]
   protocol_port = 50000
@@ -93,9 +97,9 @@ locals {
 }
 
 // nodepool
-module "apps" {
+module "nodepool" {
   for_each   = tomap(var.nodepools)
-  name       = "${var.name}-${each.key}"
+  name       = each.key
   source     = "./modules/worker"
   node_count = each.value.node_count
   flavor     = each.value.flavor

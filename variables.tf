@@ -28,6 +28,16 @@ variable "controller_count" {
   default = 3
 }
 
+variable "controller_flavor" {
+  type    = string
+  default = "d2-8"
+}
+
+variable "region" {
+  type    = string
+  default = "WAW1"
+}
+
 variable "nodepools" {
   type = map(any)
   default = {
