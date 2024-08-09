@@ -1,25 +1,9 @@
 locals {
-  machine_config = {
+  controller_config_patch = {
+    machine = {
+      certSANs = [module.controller.lb_address]
+    }
     cluster = {
-      network = {
-        cni = {
-          name = "custom"
-          urls = [
-            "https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/canal.yaml"
-          ]
-        }
-      }
-      discovery = {
-        enabled = true
-        registries = {
-          kubernetes = {
-            disabled = false
-          }
-          service = {
-            disabled = true
-          }
-        }
-      }
       inlineManifests = [
         {
           name     = "cloud-config"
@@ -43,97 +27,30 @@ locals {
           "https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml",
         ]
       }
-      apiServer = {
-        admissionControl = [{
-          name = "PodSecurity"
-          configuration = {
-            apiVersion = "pod-security.admission.config.k8s.io/v1alpha1"
-            kind       = "PodSecurityConfiguration"
-            defaults = {
-              enforce         = "privileged"
-              enforce-version = "latest"
-              audit           = "baseline"
-              audit-version   = "latest"
-              warn            = "baseline"
-              warn-version    = "latest"
-            }
-          }
-        }]
-      }
-    }
-    machine = {
-      features = {
-        hostDNS = {
-          enabled            = true
-          resolveMemberNames = true
-        }
-      }
-      network = {
-        nameservers = [
-          "1.1.1.1",
-          "1.0.0.1",
-        ]
-      }
-      kubelet = {
-        extraArgs = {
-          feature-gates = "GracefulNodeShutdown=true"
-        }
-        extraConfig = {
-          shutdownGracePeriod             = "60s"
-          shutdownGracePeriodCriticalPods = "60s"
-        }
-      }
-      sysctls = {
-        "fs.inotify.max_user_watches"   = "65536"
-        "fs.inotify.max_user_instances" = "1024"
-      }
     }
   }
 }
 
-resource "talos_machine_secrets" "this" {}
+module "talos_config" {
+  source = "./modules/talos_config"
 
-data "talos_machine_configuration" "controlplane" {
-  cluster_name       = var.name
-  machine_type       = "controlplane"
-  cluster_endpoint   = "https://${module.controller.lb_address}:6443"
-  machine_secrets    = talos_machine_secrets.this.machine_secrets
-  talos_version      = "v${var.talos_version}"
-  kubernetes_version = "v${var.kubernetes_version}"
-  examples           = false
-  docs               = false
-  config_patches = [
-    yamlencode(local.machine_config),
-    yamlencode({
-      machine = {
-        certSANs = [module.controller.lb_address]
-      }
-    }),
-  ]
-}
-
-data "talos_machine_configuration" "worker" {
-  cluster_name       = var.name
-  machine_type       = "worker"
-  cluster_endpoint   = "https://${module.controller.lb_address}:6443"
-  machine_secrets    = talos_machine_secrets.this.machine_secrets
-  talos_version      = "v${var.talos_version}"
-  kubernetes_version = "v${var.kubernetes_version}"
-  examples           = false
-  docs               = false
-  config_patches = [
-    yamlencode(local.machine_config),
+  name               = var.name
+  kubernetes_version = var.kubernetes_version
+  talos_version      = var.talos_version
+  controller_address = module.controller.lb_address
+  controller_config_patches = [
+    yamlencode(local.controller_config_patch),
   ]
 }
 
 data "talos_client_configuration" "this" {
   cluster_name         = var.name
-  client_configuration = talos_machine_secrets.this.client_configuration
+  client_configuration = module.talos_config.client_configuration
   endpoints            = [module.controller.lb_address]
 }
 
 resource "talos_machine_bootstrap" "this" {
-  client_configuration = talos_machine_secrets.this.client_configuration
+  client_configuration = module.talos_config.client_configuration
   node                 = module.controller.private_addresses[0]
   endpoint             = module.controller.lb_address
 
@@ -143,7 +60,7 @@ resource "talos_machine_bootstrap" "this" {
 }
 
 data "talos_cluster_kubeconfig" "this" {
-  client_configuration = talos_machine_secrets.this.client_configuration
+  client_configuration = module.talos_config.client_configuration
   node                 = module.controller.private_addresses[0]
   endpoint             = module.controller.lb_address
 

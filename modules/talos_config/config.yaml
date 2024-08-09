@@ -1,0 +1,45 @@
+cluster:
+  network:
+    cni:
+      name: "custom"
+      urls:
+        # - "https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/canal.yaml"
+        - "https://raw.githubusercontent.com/projectcalico/calico/v3.28.1/manifests/canal.yaml"
+  discovery:
+    enabled: true
+    registries:
+      kubernetes:
+        disabled: false
+      service:
+        disabled: true
+  apiServer:
+    admissionControl:
+      - name: "PodSecurity"
+        configuration:
+          apiVersion: "pod-security.admission.config.k8s.io/v1alpha1"
+          kind: "PodSecurityConfiguration"
+          defaults:
+            enforce: "privileged"
+            enforce-version: "latest"
+            audit: "baseline"
+            audit-version: "latest"
+            warn: "baseline"
+            warn-version: "latest"
+machine:
+  features:
+    hostDNS:
+      enabled: true
+      resolveMemberNames: true
+  network:
+    nameservers:
+      - "1.1.1.1"
+      - "1.0.0.1"
+  kubelet:
+    extraArgs:
+      feature-gates: "GracefulNodeShutdown=true"
+    extraConfig:
+      shutdownGracePeriod: "60s"
+      shutdownGracePeriodCriticalPods: "60s"
+  sysctls:
+    "fs.inotify.max_user_watches": "65536"
+    "fs.inotify.max_user_instances": "1024"

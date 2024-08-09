@@ -11,12 +11,6 @@ data "openstack_compute_flavor_v2" "flavor" {
   name = var.flavor
 }
 
-data "openstack_compute_availability_zones_v2" "zones" {}
-
-locals {
-  zones = data.openstack_compute_availability_zones_v2.zones.names
-}
-
 resource "random_string" "suffix" {
   length  = 6
   upper   = false
@@ -31,7 +25,7 @@ resource "openstack_blockstorage_volume_v3" "worker" {
   count = var.node_count
 
   name              = "${var.name}-${random_string.suffix.result}-${count.index}"
-  availability_zone = local.zones[count.index % length(local.zones)]
+  availability_zone = var.zones[count.index % length(var.zones)]
   size              = 50
   image_id          = data.openstack_images_image_v2.talos.id
 
@@ -50,7 +44,7 @@ resource "openstack_compute_instance_v2" "worker" {
   count = var.node_count
 
   name                = "${var.name}-${random_string.suffix.result}-${count.index}"
-  availability_zone   = local.zones[count.index % length(local.zones)]
+  availability_zone   = var.zones[count.index % length(var.zones)]
   security_groups     = ["default"]
   flavor_id           = data.openstack_compute_flavor_v2.flavor.id
   user_data           = var.user_data

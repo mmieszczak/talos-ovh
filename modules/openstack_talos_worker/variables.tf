@@ -43,3 +43,8 @@ variable "node_taints" {
   type    = map(string)
   default = {}
 }
+
+variable "zones" {
+  type    = list(string)
+  default = [null]
+}
