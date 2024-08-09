@@ -96,7 +96,7 @@ resource "talos_machine_secrets" "this" {}
 data "talos_machine_configuration" "controlplane" {
   cluster_name       = var.name
   machine_type       = "controlplane"
-  cluster_endpoint   = "https://${local.controller_lb_address}:6443"
+  cluster_endpoint   = "https://${module.controller.lb_address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
   kubernetes_version = "v${var.kubernetes_version}"
@@ -106,7 +106,7 @@ data "talos_machine_configuration" "controlplane" {
     yamlencode(local.machine_config),
     yamlencode({
       machine = {
-        certSANs = [local.controller_lb_address]
+        certSANs = [module.controller.lb_address]
       }
     }),
   ]
@@ -115,7 +115,7 @@ data "talos_machine_configuration" "controlplane" {
 data "talos_machine_configuration" "worker" {
   cluster_name       = var.name
   machine_type       = "worker"
-  cluster_endpoint   = "https://${local.controller_lb_address}:6443"
+  cluster_endpoint   = "https://${module.controller.lb_address}:6443"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = "v${var.talos_version}"
   kubernetes_version = "v${var.kubernetes_version}"
@@ -129,23 +129,26 @@ data "talos_machine_configuration" "worker" {
 data "talos_client_configuration" "this" {
   cluster_name         = var.name
   client_configuration = talos_machine_secrets.this.client_configuration
-  endpoints            = [local.controller_lb_address]
+  endpoints            = [module.controller.lb_address]
 }
 
 resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = local.controller_private_addresses[0]
-  endpoint             = local.controller_lb_address
+  node                 = module.controller.private_addresses[0]
+  endpoint             = module.controller.lb_address
+
+  depends_on = [
+    module.controller,
+  ]
 }
 
 data "talos_cluster_kubeconfig" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = local.controller_private_addresses[0]
-  endpoint             = local.controller_lb_address
+  node                 = module.controller.private_addresses[0]
+  endpoint             = module.controller.lb_address
 
   depends_on = [
     talos_machine_bootstrap.this,
-    openstack_lb_member_v2.controller-kubernetes,
   ]
 }
 

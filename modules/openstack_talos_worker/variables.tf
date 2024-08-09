@@ -6,11 +6,11 @@ variable "node_count" {
   type = number
 }
 
-variable "image_id" {
+variable "flavor" {
   type = string
 }
 
-variable "flavor" {
+variable "talos_image" {
   type = string
 }
 
@@ -18,7 +18,7 @@ variable "user_data" {
   type = string
 }
 
-variable "network" {
+variable "network_id" {
   type = string
 }
 

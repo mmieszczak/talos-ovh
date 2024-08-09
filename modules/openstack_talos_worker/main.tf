@@ -1,13 +1,35 @@
+data "openstack_networking_network_v2" "private" {
+  network_id = var.network_id
+}
+
+data "openstack_images_image_v2" "talos" {
+  name        = var.talos_image
+  most_recent = true
+}
+
 data "openstack_compute_flavor_v2" "flavor" {
   name = var.flavor
 }
 
+# resource "random_string" "suffix" {
+#   length  = 6
+#   upper   = false
+#   special = false
+#
+#   lifecycle {
+#     replace_triggered_by = [
+#       data.
+#     ]
+#   }
+# }
+
 resource "openstack_blockstorage_volume_v3" "worker" {
-  count    = var.node_count
-  region   = "WAW1"
+  count  = var.node_count
+  region = "WAW1"
+  # name     = "${var.name}-${random_string.suffix.result}-${count.index}"
   name     = "${var.name}-${count.index}"
   size     = 50
-  image_id = var.image_id
+  image_id = data.openstack_images_image_v2.talos.id
 
   lifecycle {
     ignore_changes = [
@@ -17,7 +39,8 @@ resource "openstack_blockstorage_volume_v3" "worker" {
 }
 
 resource "openstack_compute_instance_v2" "worker" {
-  count               = var.node_count
+  count = var.node_count
+  # name                = "${var.name}-${random_string.suffix.result}-${count.index}"
   name                = "${var.name}-${count.index}"
   security_groups     = ["default"]
   flavor_id           = data.openstack_compute_flavor_v2.flavor.id
@@ -32,7 +55,7 @@ resource "openstack_compute_instance_v2" "worker" {
   }
 
   network {
-    name = var.network
+    name = data.openstack_networking_network_v2.private.name
   }
 
   lifecycle {
